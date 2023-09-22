@@ -7,6 +7,9 @@ import os
 import re
 import sys
 from importlib.util import find_spec
+from typing import Tuple, Union
+from debugpy.public_api import Endpoint
+from _typeshed import FileDescriptorOrPath
 
 # debugpy.__main__ should have preloaded pydevd properly before importing this module.
 # Otherwise, some stdlib modules above might have had imported threading before pydevd
@@ -40,21 +43,22 @@ Usage: debugpy --listen | --connect
 
 
 class Options(object):
-    mode = None
-    address = None
-    log_to = None
-    log_to_stderr = False
-    target = None
+    mode: Union[str, None] = None
+    address: Union[Endpoint, int] = 0
+    log_to: Union[str, None] = None
+    log_to_stderr: bool = False
+    target: Union[str, None] = None
     target_kind = None
     wait_for_client = False
     adapter_access_token = None
+    config: dict = {}
 
 
 options = Options()
 options.config = {"qt": "none", "subProcess": True}
 
 
-def in_range(parser, start, stop):
+def in_range(parser, start: int, stop: Union[int, None]):
     def parse(s):
         n = parser(s)
         if start is not None and n < start:
@@ -272,11 +276,12 @@ def run_file():
     # parent directory to sys.path. Thus, importing other modules from the
     # same directory is broken unless sys.path is patched here.
 
-    if os.path.isfile(target):
-        dir = os.path.dirname(target)
-        sys.path.insert(0, dir)
-    else:
-        log.debug("Not a file: {0!r}", target)
+    if target is not None:
+        if os.path.isfile(target):
+            dir = os.path.dirname(target)
+            sys.path.insert(0, dir)
+        else:
+            log.debug("Not a file: {0!r}", target)
 
     log.describe_environment("Pre-launch environment:")
 
