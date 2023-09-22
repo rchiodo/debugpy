@@ -21,6 +21,7 @@ import pydevd
 from _pydevd_bundle import pydevd_runpy as runpy
 
 import debugpy
+import debugpy.server
 from debugpy.common import log
 from debugpy.server import api
 
