@@ -2,11 +2,16 @@
 # Licensed under the MIT License. See LICENSE in the project root
 # for license information.
 
+from enum import StrEnum
 import json
 import os
 import re
 import sys
 from importlib.util import find_spec
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing_extensions import Union, Tuple
 
 # debugpy.__main__ should have preloaded pydevd properly before importing this module.
 # Otherwise, some stdlib modules above might have had imported threading before pydevd
@@ -38,10 +43,13 @@ Usage: debugpy --listen | --connect
     debugpy.__version__, TARGET
 )
 
+class OptionsMode(StrEnum):
+    listen = "listen"
+    connect = "connect"
 
 class Options(object):
-    mode = None
-    address = None
+    mode: Union[OptionsMode, None] = None
+    address: Union[Tuple[str, int], None] = None
     log_to = None
     log_to_stderr = False
     target = None
@@ -94,13 +102,13 @@ def set_const(varname, value):
     return do
 
 
-def set_address(mode):
-    def do(arg, it):
+def set_address(mode: OptionsMode):
+    def do(arg: str, it):
         if options.address is not None:
             raise ValueError("--listen and --connect are mutually exclusive")
 
         # It's either host:port, or just port.
-        value = next(it)
+        value: str = next(it)
         host, sep, port = value.partition(":")
         if not sep:
             host = "127.0.0.1"
@@ -330,7 +338,7 @@ def run_code():
     eval(code, {})
 
 
-def attach_to_pid():
+def attach_to_pid() -> None:
     pid = options.target
     log.info("Attaching to process with PID={0}", pid)
 
