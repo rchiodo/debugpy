@@ -11,7 +11,7 @@ from importlib.util import find_spec
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from typing_extensions import Union, Tuple
+    from typing_extensions import Union, Tuple, Dict, Callable
 
 # debugpy.__main__ should have preloaded pydevd properly before importing this module.
 # Otherwise, some stdlib modules above might have had imported threading before pydevd
@@ -50,12 +50,13 @@ class OptionsMode(StrEnum):
 class Options(object):
     mode: Union[OptionsMode, None] = None
     address: Union[Tuple[str, int], None] = None
-    log_to = None
-    log_to_stderr = False
+    log_to: Union[str, None] = None
+    log_to_stderr: Union[str, None] = False
     target = None
     target_kind = None
-    wait_for_client = False
+    wait_for_client: bool = False
     adapter_access_token = None
+    config: Dict[str, Union[str, bool]]
 
 
 options = Options()
@@ -126,7 +127,7 @@ def set_address(mode: OptionsMode):
     return do
 
 
-def set_config(arg, it):
+def set_config(arg: str, it):
     prefix = "--configure-"
     assert arg.startswith(prefix)
     name = arg[len(prefix) :]
@@ -147,8 +148,8 @@ def set_config(arg, it):
     options.config[name] = value
 
 
-def set_target(kind, parser=(lambda x: x), positional=False):
-    def do(arg, it):
+def set_target(kind: str, parser: Callable[[str], str] = (lambda x: x), positional=False):
+    def do(arg: str, it):
         options.target_kind = kind
         target = parser(arg if positional else next(it))
 
