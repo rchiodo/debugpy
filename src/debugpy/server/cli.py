@@ -8,10 +8,10 @@ import os
 import re
 import sys
 from importlib.util import find_spec
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from typing_extensions import Union, Tuple, Dict, Callable
+    from typing_extensions import Union, Tuple, Dict, Callable, Iterator
 
 # debugpy.__main__ should have preloaded pydevd properly before importing this module.
 # Otherwise, some stdlib modules above might have had imported threading before pydevd
@@ -52,10 +52,10 @@ class Options(object):
     address: Union[Tuple[str, int], None] = None
     log_to: Union[str, None] = None
     log_to_stderr: Union[str, None] = False
-    target = None
-    target_kind = None
+    target: Union[str, None] = None
+    target_kind: Union[str, None] = None
     wait_for_client: bool = False
-    adapter_access_token = None
+    adapter_access_token: Union[str, None] = None
     config: Dict[str, Union[str, bool]]
 
 
@@ -63,7 +63,7 @@ options = Options()
 options.config = {"qt": "none", "subProcess": True}
 
 
-def in_range(parser, start, stop):
+def in_range(parser: Callable[[str], int], start: Union[int, None], stop: Union[int, None]):
     def parse(s):
         n = parser(s)
         if start is not None and n < start:
@@ -88,16 +88,16 @@ def print_version_and_exit(switch, it):
     sys.exit(0)
 
 
-def set_arg(varname, parser=(lambda x: x)):
-    def do(arg, it):
+def set_arg(varname, parser: Callable[[str], str] = (lambda x: x)):
+    def do(arg: str, it: Iterator[str]):
         value = parser(next(it))
         setattr(options, varname, value)
 
     return do
 
 
-def set_const(varname, value):
-    def do(arg, it):
+def set_const(varname: str, value: Any):
+    def do(arg: str, it: Iterator[str]):
         setattr(options, varname, value)
 
     return do
@@ -149,7 +149,7 @@ def set_config(arg: str, it):
 
 
 def set_target(kind: str, parser: Callable[[str], str] = (lambda x: x), positional=False):
-    def do(arg: str, it):
+    def do(arg: str, it: Iterator[str]):
         options.target_kind = kind
         target = parser(arg if positional else next(it))
 
