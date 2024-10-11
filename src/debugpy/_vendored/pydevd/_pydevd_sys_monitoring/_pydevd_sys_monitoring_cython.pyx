@@ -1344,7 +1344,7 @@ cdef _jump_event(code, int from_offset, int to_offset):
     if hasattr(_thread_local_info, "f_disable_next_line_if_match"):
         del _thread_local_info.f_disable_next_line_if_match
 
-    if not thread_info.trace or thread_info.thread._is_stopped:
+    if not thread_info.trace or not is_thread_alive(thread_info.thread):
         # For thread-related stuff we can't disable the code tracing because other
         # threads may still want it...
         return
