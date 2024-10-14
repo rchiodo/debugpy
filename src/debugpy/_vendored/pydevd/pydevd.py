@@ -2415,7 +2415,7 @@ class PyDB(object):
                         pydevd_sys_monitoring.enable_code_tracing(thread_ident, frame.f_code, frame)
                 else:
                     if DEBUG:
-                        pydev_log.debug("SKIP set tracing of frame: %s - %s", frame.f_code.co_filename, frame.f_code.co_name)
+                        pydev_log.debug("SKIP set tracing of frame: %s - %s, %s", frame.f_code.co_filename, frame.f_code.co_name, file_type)
             else:
                 # Not using sys.monitoring.
                 if file_type is None:
