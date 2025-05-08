@@ -119,6 +119,7 @@ def _starts_debugging(func):
         settrace_kwargs = {
             "suspend": False,
             "patch_multiprocessing": _config.get("subProcess", True),
+            "just_my_code": _config.get("justMyCode", True),
         }
 
         if hide_debugpy_internals():

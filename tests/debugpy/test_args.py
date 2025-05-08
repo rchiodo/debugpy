@@ -73,3 +73,41 @@ def test_shell_expansion(pyfile, target, run, expansion):
 
     expand(argslist)
     assert argv == [some.str] + argslist
+
+
+@pytest.mark.parametrize("target", targets.all)
+@pytest.mark.parametrize("run", runners.all_launch)
+def test_configure_justmycode_arg(pyfile, target, run):
+    """Tests that the --configure-justMyCode False is passed to the server
+    when justMyCode is False in the launch configuration.
+    """
+
+    @pyfile
+    def code_to_debug():
+        import sys
+        import debuggee
+        from debuggee import backchannel
+
+        debuggee.setup()
+        # Send the command line arguments of the server process (debuggee)
+        # back to the test.
+        backchannel.send(sys.argv)
+
+    with debug.Session() as session:
+        session.config["justMyCode"] = False  # Set JMC to False for the launch
+        backchannel = session.open_backchannel()
+        with run(session, target(code_to_debug)):
+            pass
+        
+        server_argv = backchannel.receive()
+        
+        # Check if '--configure-justMyCode' and 'False' are in the server's argv
+        assert "--configure-justMyCode" in server_argv
+        assert "False" in server_argv
+        
+        # Ensure they are in the correct order if other --configure-* options might exist
+        try:
+            idx = server_argv.index("--configure-justMyCode")
+            assert server_argv[idx + 1] == "False"
+        except (ValueError, IndexError):
+            assert False, "--configure-justMyCode False not found in server argv"

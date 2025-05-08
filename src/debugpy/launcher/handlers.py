@@ -53,6 +53,9 @@ def launch_request(request):
         if not request("subProcess", True):
             cmdline += ["--configure-subProcess", "False"]
 
+        if not request("justMyCode", True):
+            cmdline += ["--configure-justMyCode", "False"]
+
         qt_mode = request(
             "qt",
             json.enum(
