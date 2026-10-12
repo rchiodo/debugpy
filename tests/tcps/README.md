@@ -12,7 +12,7 @@ requires OpenSSL on `PATH`. Git for Windows includes OpenSSL.
 From the repository root:
 
 ```powershell
-.\tests\tcps\run.ps1
+.\tests\tcps\run_tcps.ps1
 ```
 
 The runner uses this checkout's `src` directory, generates a one-day self-signed
