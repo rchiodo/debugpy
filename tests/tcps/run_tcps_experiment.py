@@ -2,6 +2,7 @@
 # Licensed under the MIT License. See LICENSE in the project root
 # for license information.
 
+import argparse
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,25 @@ debugpy.connect(("localhost", int(sys.argv[1])))
 print("CONNECT_RETURNED", flush=True)
 print("ATTACHED=" + str(debugpy.is_client_connected()), flush=True)
 """
+
+
+def _debuggee_command(port, log_dir, cli=False):
+    command = [sys.executable, "-X", "frozen_modules=off"]
+    if cli:
+        return command + [
+            "-m",
+            "debugpy",
+            "--connect",
+            f"{HOST}:{port}",
+            "--configure-subProcess",
+            "False",
+            "--log-to",
+            str(log_dir),
+            "-c",
+            "import debugpy; print('DEBUGGEE_RAN', flush=True); "
+            "print('ATTACHED=' + str(debugpy.is_client_connected()), flush=True)",
+        ]
+    return command + ["-c", CONNECT_CODE, str(port), str(log_dir)]
 
 
 def _finish(process, timeout=8):
@@ -106,34 +126,11 @@ def _run_tls_case(context, label, tls_control=False, cli=False):
         else:
             log_dir = ROOT / label
             log_dir.mkdir(exist_ok=True)
-            if cli:
-                command = [
-                    sys.executable,
-                    "-X",
-                    "frozen_modules=off",
-                    "-m",
-                    "debugpy",
-                    "--connect",
-                    f"{HOST}:{port}",
-                    "--configure-subProcess",
-                    "False",
-                    "--log-to",
-                    str(log_dir),
-                    "-c",
-                    "print('DEBUGGEE_RAN', flush=True)",
-                ]
-            else:
-                command = [
-                    sys.executable,
-                    "-X",
-                    "frozen_modules=off",
-                    "-c",
-                    CONNECT_CODE,
-                    str(port),
-                    str(log_dir),
-                ]
             process = subprocess.Popen(
-                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                _debuggee_command(port, log_dir, cli),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
         result = results.get(timeout=18)
         result["endpoint"] = f"tcps://{HOST}:{port}"
@@ -200,9 +197,9 @@ class _DapClient:
         raise RuntimeError("Expected DAP message was not received")
 
 
-def _plain_attach_control():
+def _plain_attach_control(cli=False):
     endpoints_file = ROOT / "adapter-endpoints.json"
-    log_dir = ROOT / "plaintext-control"
+    log_dir = ROOT / ("plaintext-cli-control" if cli else "plaintext-control")
     log_dir.mkdir(exist_ok=True)
     environment = dict(os.environ, DEBUGPY_ADAPTER_ENDPOINTS=str(endpoints_file))
     adapter = subprocess.Popen(
@@ -260,15 +257,7 @@ def _plain_attach_control():
             waiting = dap.wait(lambda m: m.get("event") == "debugpyWaitingForServer")
             port = waiting["body"]["port"]
             debuggee = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-X",
-                    "frozen_modules=off",
-                    "-c",
-                    CONNECT_CODE,
-                    str(port),
-                    str(log_dir),
-                ],
+                _debuggee_command(port, log_dir, cli),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -283,11 +272,18 @@ def _plain_attach_control():
                     assert message["success"], message
                     responses[request_sequence] = message
             process_result = _finish(debuggee)
-            assert "CONNECT_RETURNED" in process_result["stdout"], process_result
+            marker = "DEBUGGEE_RAN" if cli else "CONNECT_RETURNED"
+            assert marker in process_result["stdout"], process_result
             assert "ATTACHED=True" in process_result["stdout"], process_result
             assert not process_result["timed_out"], process_result
+            assert process_result["exit_code"] == 0, process_result
             return {
-                "case": "plaintext-full-attach-control",
+                "case": (
+                    "plaintext-cli-full-attach-control"
+                    if cli
+                    else "plaintext-full-attach-control"
+                ),
+                "entry_point": "cli" if cli else "api",
                 "endpoint": f"tcp://{HOST}:{port}",
                 "attach_response_success": responses[attach]["success"],
                 "configuration_done_success": responses[configuration]["success"],
@@ -304,24 +300,36 @@ def _plain_attach_control():
 
 
 def _main():
+    parser = argparse.ArgumentParser(description="Local debugpy connection experiment")
+    parser.add_argument(
+        "--tcp-only",
+        action="store_true",
+        help="Run real API and CLI attaches over plain TCP without TLS or certificates",
+    )
+    args = parser.parse_args()
     ROOT.mkdir(exist_ok=True)
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.minimum_version = ssl.TLSVersion.TLSv1_2
-    context.load_cert_chain(str(ROOT / "cert.pem"), str(ROOT / "key.pem"))
-    results = [
-        _run_tls_case(context, "tls-client-control", tls_control=True),
-        _run_tls_case(context, "debugpy-api"),
-        _run_tls_case(context, "debugpy-cli", cli=True),
-        _plain_attach_control(),
-    ]
+    if args.tcp_only:
+        results = [_plain_attach_control(), _plain_attach_control(cli=True)]
+    else:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        context.load_cert_chain(str(ROOT / "cert.pem"), str(ROOT / "key.pem"))
+        results = [
+            _run_tls_case(context, "tls-client-control", tls_control=True),
+            _run_tls_case(context, "debugpy-api"),
+            _run_tls_case(context, "debugpy-cli", cli=True),
+            _plain_attach_control(),
+        ]
     report = {
+        "transport": "tcp" if args.tcp_only else "tcps",
         "python": sys.version,
         "source": os.environ["PYTHONPATH"],
         "debugpy_version": debugpy.__version__,
         "debugpy_path": debugpy.__file__,
         "results": results,
     }
-    (ROOT / "tcps-results.json").write_text(json.dumps(report, indent=2))
+    report_file = ROOT / ("tcp-results.json" if args.tcp_only else "tcps-results.json")
+    report_file.write_text(json.dumps(report, indent=2))
     print(json.dumps(report, indent=2), flush=True)
 
 

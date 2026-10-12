@@ -6,8 +6,8 @@ by pytest and does not change debugpy.
 
 ## Run on Windows
 
-Requirements: Python 3.10 or later, PowerShell, and OpenSSL on `PATH`. Git for
-Windows includes OpenSSL.
+Requirements: Python 3.10 or later and PowerShell. The TLS runner additionally
+requires OpenSSL on `PATH`. Git for Windows includes OpenSSL.
 
 From the repository root:
 
@@ -28,6 +28,24 @@ certificate for `localhost`, and runs four cases:
 All listeners bind to `127.0.0.1` on automatically assigned ports. The certificate
 and private key are removed in the runner's `finally` block. Results and debugpy
 logs are retained in the ignored `_output` directory.
+
+## Plain TCP runner
+
+Run just the successful attach cases, without OpenSSL, certificates, or TLS:
+
+```powershell
+.\tests\tcps\run_tcp.ps1
+```
+
+This uses the same harness and debuggee commands as the TLS runner, but connects
+to a real debug adapter over plain TCP. Both the API and CLI cases must complete
+DAP `attach` and `configurationDone`, report `ATTACHED=True`, and exit with code
+zero without being killed. The API also reports `CONNECT_RETURNED`; the CLI
+reports `DEBUGGEE_RAN`.
+
+Results are saved as `_output\tcp-results.json`, separately from
+`_output\tcps-results.json`. Debugpy logs remain in `_output`. This runner
+does not create a TLS context or require certificate files.
 
 ## What the original run observed
 
